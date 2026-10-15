@@ -4,6 +4,7 @@ import { Accordion, LoadingOverlay, Stack, Text } from '@mantine/core';
 import { useCallback, useMemo, useState } from 'react';
 
 import { AddItemButton } from '@lib/components/AddItemButton';
+import { RoleTable, type RuleSet } from '@lib/components/RoleTable';
 import {
   type RowAction,
   RowDeleteAction,
@@ -21,14 +22,15 @@ import type { ApiFormModalProps } from '@lib/index';
 import type { TableColumn, TableState } from '@lib/types/Tables';
 import { IconUsersGroup } from '@tabler/icons-react';
 import { useNavigate } from 'react-router-dom';
+import { api } from '../../App';
 import { EditApiForm } from '../../components/forms/ApiForm';
-import { RoleTable, type RuleSet } from '../../components/items/RoleTable';
 import { InvenTreeTable } from '../../components/tables/InvenTreeTable';
 import {
   useCreateApiFormModal,
   useDeleteApiFormModal
 } from '../../hooks/UseForm';
 import { useInstance } from '../../hooks/UseInstance';
+import { usePluginPanels } from '../../hooks/UsePluginPanels';
 import { useUserState } from '../../states/UserState';
 
 export interface GroupDetailI {
@@ -60,6 +62,14 @@ export function GroupDrawer({
   const groupRoles: RuleSet[] = useMemo(() => {
     return instance?.roles ?? [];
   }, [instance]);
+
+  // Panels provided by plugins for this group
+  const pluginPanels = usePluginPanels({
+    model: ModelType.group,
+    id: id,
+    instance: instance,
+    reloadFunc: refreshInstance
+  });
 
   if (isFetching) {
     return <LoadingOverlay visible={true} />;
@@ -114,9 +124,18 @@ export function GroupDrawer({
             </StylishText>
           </Accordion.Control>
           <Accordion.Panel>
-            <RoleTable roles={groupRoles} editable />
+            <RoleTable roles={groupRoles} editable api={api} />
           </Accordion.Panel>
         </Accordion.Item>
+
+        {pluginPanels.panels.map((panel) => (
+          <Accordion.Item key={panel.name} value={panel.name}>
+            <Accordion.Control icon={panel.icon}>
+              <StylishText size='lg'>{panel.label}</StylishText>
+            </Accordion.Control>
+            <Accordion.Panel>{panel.content}</Accordion.Panel>
+          </Accordion.Item>
+        ))}
       </Accordion>
     </Stack>
   );

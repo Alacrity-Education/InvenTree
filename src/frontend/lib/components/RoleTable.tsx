@@ -1,7 +1,4 @@
-import { ApiEndpoints } from '@lib/enums/ApiEndpoints';
-import { apiUrl } from '@lib/functions/Api';
 import { t } from '@lingui/core/macro';
-import { Trans } from '@lingui/react/macro';
 import {
   Button,
   Checkbox,
@@ -13,8 +10,10 @@ import {
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import { IconCircleCheck, IconReload } from '@tabler/icons-react';
+import type { AxiosInstance } from 'axios';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { api } from '../../App';
+import { ApiEndpoints } from '../enums/ApiEndpoints';
+import { apiUrl } from '../functions/Api';
 
 export interface RuleSet {
   pk?: number;
@@ -28,12 +27,29 @@ export interface RuleSet {
   edited?: boolean;
 }
 
+/**
+ * Table of roles (rulesets) with view / change / add / delete permissions.
+ *
+ * @param roles - The rulesets to display
+ * @param editable - Allow the permissions to be edited and saved
+ * @param endpoint - API endpoint used to save a ruleset (default: ruleset_list)
+ * @param api - Axios instance used by the default save handler (required for saving, unless onSave is provided)
+ * @param onSave - Optional override for saving: receives the edited rulesets, and
+ *                 may resolve to the rulesets which were saved successfully
+ *                 (default: PATCH each edited ruleset to the endpoint)
+ */
 export function RoleTable({
   roles,
-  editable = false
+  editable = false,
+  endpoint = ApiEndpoints.ruleset_list,
+  api,
+  onSave: onSaveOverride
 }: {
   roles: RuleSet[];
   editable?: boolean;
+  endpoint?: ApiEndpoints;
+  api?: AxiosInstance;
+  onSave?: (rulesets: RuleSet[]) => Promise<void> | void;
 }) {
   const [rulesets, setRulesets] = useState<RuleSet[]>(roles);
 
@@ -76,6 +92,19 @@ export function RoleTable({
       return;
     }
 
+    if (onSaveOverride) {
+      await onSaveOverride(rulesets.filter((r) => r.edited));
+
+      // Mark everything as saved
+      setRulesets((prev) => prev.map((r) => ({ ...r, edited: false })));
+      return;
+    }
+
+    if (!api) {
+      console.error('RoleTable: no api instance provided for saving');
+      return;
+    }
+
     notifications.show({
       id: 'group-roles-update',
       title: t`Updating`,
@@ -87,7 +116,7 @@ export function RoleTable({
 
     for (const ruleset of rulesets.filter((r) => r.edited)) {
       await api
-        .patch(apiUrl(ApiEndpoints.ruleset_list, ruleset.pk), {
+        .patch(apiUrl(endpoint, ruleset.pk), {
           can_view: ruleset.can_view,
           can_add: ruleset.can_add,
           can_change: ruleset.can_change,
@@ -131,29 +160,19 @@ export function RoleTable({
           <Table.Thead>
             <Table.Tr>
               <Table.Th>
-                <Text fw={700}>
-                  <Trans>Role</Trans>
-                </Text>
+                <Text fw={700}>{t`Role`}</Text>
               </Table.Th>
               <Table.Th>
-                <Text fw={700}>
-                  <Trans>View</Trans>
-                </Text>
+                <Text fw={700}>{t`View`}</Text>
               </Table.Th>
               <Table.Th>
-                <Text fw={700}>
-                  <Trans>Change</Trans>
-                </Text>
+                <Text fw={700}>{t`Change`}</Text>
               </Table.Th>
               <Table.Th>
-                <Text fw={700}>
-                  <Trans>Add</Trans>
-                </Text>
+                <Text fw={700}>{t`Add`}</Text>
               </Table.Th>
               <Table.Th>
-                <Text fw={700}>
-                  <Trans>Delete</Trans>
-                </Text>
+                <Text fw={700}>{t`Delete`}</Text>
               </Table.Th>
             </Table.Tr>
           </Table.Thead>

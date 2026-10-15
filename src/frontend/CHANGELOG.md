@@ -2,6 +2,10 @@
 
 This file contains historical changelog information for the InvenTree UI components library.
 
+### 1.6.0 - October 2026
+
+Exports the `RoleTable` component (and `RuleSet` type), with optional `endpoint`, `api` and `onSave` props, so that plugins can render role / ruleset editors.
+
 ### 1.5.0 - August 2026
 
 Updated UI components library to match 1.5.0 InvenTree release.

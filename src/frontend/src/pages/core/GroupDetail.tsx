@@ -1,3 +1,4 @@
+import { RoleTable, type RuleSet } from '@lib/components/RoleTable';
 import { StylishText } from '@lib/components/StylishText';
 import { ApiEndpoints } from '@lib/enums/ApiEndpoints';
 import { ModelType } from '@lib/enums/ModelType';
@@ -7,10 +8,10 @@ import { Paper, Skeleton, Stack } from '@mantine/core';
 import { IconInfoCircle } from '@tabler/icons-react';
 import { useMemo } from 'react';
 import { useParams } from 'react-router-dom';
+import { api } from '../../App';
 import type { DetailsField } from '../../components/details/Details';
 import { ItemDetailsGrid } from '../../components/details/ItemDetails';
 import {} from '../../components/items/ActionDropdown';
-import { RoleTable, type RuleSet } from '../../components/items/RoleTable';
 import InstanceDetail from '../../components/nav/InstanceDetail';
 import { PageDetail } from '../../components/nav/PageDetail';
 import { PanelGroup } from '../../components/panels/PanelGroup';
@@ -51,7 +52,7 @@ export default function GroupDetail() {
         <Paper p='xs' withBorder>
           <Stack gap='xs'>
             <StylishText size='lg'>{t`Group Roles`}</StylishText>
-            <RoleTable roles={roles} />
+            <RoleTable roles={roles} api={api} />
           </Stack>
         </Paper>
       </ItemDetailsGrid>

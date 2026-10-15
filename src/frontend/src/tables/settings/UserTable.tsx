@@ -45,6 +45,7 @@ import {
   useDeleteApiFormModal
 } from '../../hooks/UseForm';
 import { useInstance } from '../../hooks/UseInstance';
+import { usePluginPanels } from '../../hooks/UsePluginPanels';
 import { useUserState } from '../../states/UserState';
 import type { GroupDetailI } from './GroupTable';
 
@@ -74,6 +75,14 @@ export function UserDrawer({
   } = useInstance<UserDetailI>({
     endpoint: ApiEndpoints.user_list,
     pk: id
+  });
+
+  // Panels provided by plugins for this user
+  const pluginPanels = usePluginPanels({
+    model: ModelType.user,
+    id: id,
+    instance: userDetail,
+    reloadFunc: refreshInstance
   });
 
   const currentUserPk = useUserState(useShallow((s) => s.user?.pk));
@@ -227,6 +236,15 @@ export function UserDrawer({
             />
           </Accordion.Panel>
         </Accordion.Item>
+
+        {pluginPanels.panels.map((panel) => (
+          <Accordion.Item key={panel.name} value={panel.name}>
+            <Accordion.Control icon={panel.icon}>
+              <StylishText size='lg'>{panel.label}</StylishText>
+            </Accordion.Control>
+            <Accordion.Panel>{panel.content}</Accordion.Panel>
+          </Accordion.Item>
+        ))}
       </Accordion>
     </Stack>
   );

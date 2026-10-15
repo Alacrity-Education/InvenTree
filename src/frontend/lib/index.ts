@@ -148,6 +148,7 @@ export {
   DetailDrawerComponent
 } from './components/nav/DetailDrawer';
 export { StylishText } from './components/StylishText';
+export { RoleTable, type RuleSet } from './components/RoleTable';
 
 // State management
 export {
