@@ -687,6 +687,95 @@ class RegistryTests(TestQueryMixin, PluginRegistryMixin, TestCase):
             registry.registry_hash = 'abc'
             self.assertTrue(registry.check_reload())
 
+    @override_settings(PLUGIN_TESTING_SETUP=True)
+    def test_reload_expires_model_meta_caches(self):
+        """Relations to models registered during a reload are visible afterwards.
+
+        A reload re-populates the apps registry while apps.ready is False, so
+        the Apps.clear_cache() calls inside populate() skip the per-model cache
+        expiry. Relation trees cached before the reload would then never learn
+        about the models registered during it: reverse accessors are missing
+        and on_delete cascades are not collected, so deleting the core object
+        fails on the database constraint.
+        """
+        import sys
+
+        from django.apps import apps
+        from django.contrib.auth.models import Group
+
+        tmp = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, tmp, ignore_errors=True)
+
+        pkg = 'inventree_relation_test_plugin'
+        src = tmp.joinpath(pkg)
+        src.mkdir()
+        src.joinpath('__init__.py').write_text('')
+        src.joinpath('models.py').write_text(
+            textwrap.dedent("""
+            from django.contrib.auth.models import Group
+            from django.db import models
+
+
+            class GroupNote(models.Model):
+                group = models.ForeignKey(
+                    Group, on_delete=models.CASCADE, related_name='relation_test_notes'
+                )
+
+                class Meta:
+                    app_label = 'inventree_relation_test_plugin'
+            """)
+        )
+        # The plugin module imports its models (as plugins with API views do):
+        # after a purge they are registered when the registry collects, before
+        # the apps registry is re-populated, so nothing expires the caches later
+        src.joinpath('core.py').write_text(
+            textwrap.dedent("""
+            from plugin import InvenTreePlugin
+            from plugin.mixins import AppMixin
+
+            from . import models  # noqa: F401
+
+
+            class RelationTestPlugin(AppMixin, InvenTreePlugin):
+                NAME = 'RelationTestPlugin'
+                SLUG = 'relation-test-plugin'
+                VERSION = '1.0.0'
+            """)
+        )
+        dist_info = tmp.joinpath(f'{pkg}-1.0.0.dist-info')
+        dist_info.mkdir()
+        dist_info.joinpath('METADATA').write_text(
+            f'Metadata-Version: 2.1\nName: {pkg}\nVersion: 1.0.0\n'
+        )
+        dist_info.joinpath('entry_points.txt').write_text(
+            f'[inventree_plugins]\nRelationTestPlugin = {pkg}.core:RelationTestPlugin\n'
+        )
+
+        def cleanup():
+            sys.path.remove(str(tmp))
+            for name in [n for n in sys.modules if n.split('.')[0] == pkg]:
+                del sys.modules[name]
+            apps.all_models.pop(pkg, None)
+            registry.reload_plugins(full_reload=True, collect=True)
+
+        self.enterContext(mock.patch.object(sys, 'dont_write_bytecode', True))
+        sys.path.insert(0, str(tmp))
+        self.addCleanup(cleanup)
+
+        def group_relations():
+            return [f.name for f in Group._meta.get_fields(include_hidden=True)]
+
+        self.assertNotIn('relation_test_notes', group_relations())
+
+        # First load: the package is imported while collecting
+        registry.reload_plugins(full_reload=True, collect=True)
+        self.assertIsNotNone(registry.get_plugin('relation-test-plugin', active=None))
+        self.assertIn('relation_test_notes', group_relations())
+
+        # Reload: the package is purged and imported again while collecting
+        registry.reload_plugins(full_reload=True, collect=True)
+        self.assertIn('relation_test_notes', group_relations())
+
     def test_check_reload_mismatch(self):
         """Test that a persistent registry hash mismatch is reported, rather than looping.
 

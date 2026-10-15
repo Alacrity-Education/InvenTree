@@ -1072,6 +1072,12 @@ class PluginsRegistry:
         else:
             self._try_reload(apps.set_installed_apps, loadable_apps)
 
+        # Both paths re-populate the registry while apps.ready is False, so the
+        # Apps.clear_cache() they run skips the per-model cache expiry: relation
+        # trees and field caches built before the reload would still miss the
+        # models registered during it (reverse accessors, on_delete cascades).
+        apps.clear_cache()
+
     def _clean_installed_apps(self):
         for plugin in self.installed_apps:
             if plugin in settings.INSTALLED_APPS:
