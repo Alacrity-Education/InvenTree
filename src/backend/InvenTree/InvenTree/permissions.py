@@ -52,7 +52,7 @@ def map_scope(
     """Generate the required scopes for OAS permission views.
 
     Args:
-        roles (Optional[list[str]]): A list of roles or tables to generate granular scopes for.
+        roles (Optional[list[str]]): A list of roles to generate granular scopes for. Any one of them suffices: a table that belongs to several rulesets is accessible with the scope of any of them, as the role check (users.permissions.check_user_permission) accepts any of the roles.
         only_read (bool): If True, only the read scope will be returned for all actions.
         read_name (str): The read scope name to use when `only_read` is True.
         map_read (Optional[list[str]]): A list of HTTP methods that should map to the default read scope (use if some actions requirea differing role).
@@ -68,7 +68,8 @@ def map_scope(
         if only_read:
             return [[read_name]]
         if roles:
-            return [[get_granular_scope(action, table) for table in roles]]
+            # One alternative per role (OR), not one alternative with every role (AND)
+            return [[get_granular_scope(action, role)] for role in roles]
         return [[action]]
 
     def get_scope(method, action):

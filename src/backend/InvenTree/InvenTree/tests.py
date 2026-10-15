@@ -2078,3 +2078,93 @@ class InvenTreeAppConfigTests(TestCase):
 
             self.assertEqual(raised.exception.code, 1)
             self.assertFalse(apps.PRE_1_0_0_CHECK_DONE)
+
+
+class OAuth2ScopeMapTest(TestCase):
+    """Scopes required for tables that belong to several rulesets."""
+
+    @staticmethod
+    def token_passes(scope, method, required):
+        """Whether DOT's TokenMatchesOASRequirements passes a token with *scope*."""
+        from oauth2_provider.contrib.rest_framework import TokenMatchesOASRequirements
+        from oauth2_provider.models import AccessToken
+
+        class Request:
+            def __init__(self):
+                self.method = method
+                self.auth = AccessToken(
+                    scope=scope, expires=timezone.now() + timedelta(hours=1)
+                )
+
+        class View:
+            required_alternate_scopes = required
+
+        return TokenMatchesOASRequirements().has_permission(Request(), View())
+
+    def test_map_scope_any_role(self):
+        """map_scope(roles=...) gives one alternative per role."""
+        from InvenTree.permissions import map_scope
+
+        scopes = map_scope(roles=['part', 'build'])
+        self.assertEqual(scopes['GET'], [['r:view:part'], ['r:view:build']])
+        self.assertEqual(scopes['POST'], [['r:add:part'], ['r:add:build']])
+        self.assertEqual(scopes['PATCH'], [['r:change:part'], ['r:change:build']])
+        self.assertEqual(scopes['DELETE'], [['r:delete:part'], ['r:delete:build']])
+        self.assertEqual(scopes['OPTIONS'], [['g:read']])
+
+        # A single role is unchanged
+        self.assertEqual(map_scope(roles=['stock'])['GET'], [['r:view:stock']])
+
+    def test_multi_role_table_accepts_any_role_scope(self):
+        """A token with the scope of one of the table's roles passes the scope check."""
+        from InvenTree.permissions import InvenTreeRoleScopeMixin, precalculated_roles
+        from part.api import PartList
+
+        # part_part belongs to the 'part' and the 'build' rulesets
+        self.assertEqual(sorted(precalculated_roles['part_part']), ['build', 'part'])
+
+        required = InvenTreeRoleScopeMixin().get_required_alternate_scopes(
+            None, PartList()
+        )
+        self.assertIn(['r:view:part'], required['GET'])
+        self.assertIn(['r:view:build'], required['GET'])
+
+        self.assertTrue(self.token_passes('r:view:part', 'GET', required))
+        self.assertTrue(self.token_passes('r:view:build', 'GET', required))
+        self.assertFalse(self.token_passes('r:view:stock', 'GET', required))
+
+    def test_content_type_permission_accepts_any_role_scope(self):
+        """ContentTypePermission (GenericMetadataView): any one role's scope passes.
+
+        Before, a token needed the scope of all roles. The object-level check
+        (has_object_permission) still applies to the user.
+        """
+        from InvenTree.permissions import ContentTypePermission
+        from users.oauth2_scopes import _roles
+
+        required = ContentTypePermission().get_required_alternate_scopes(None, None)
+        self.assertEqual(required['GET'], [[f'r:view:{role}'] for role in _roles])
+        self.assertEqual(required['PATCH'], [[f'r:change:{role}'] for role in _roles])
+
+        self.assertTrue(self.token_passes('r:view:stock', 'GET', required))
+        self.assertTrue(self.token_passes('r:change:part', 'PATCH', required))
+        self.assertFalse(self.token_passes('g:read', 'GET', required))
+        self.assertFalse(self.token_passes('r:view:part', 'PATCH', required))
+
+    def test_data_importer_permission_accepts_any_role_scope(self):
+        """DataImporterPermission: reads need g:read, writes any one role's change scope."""
+        from InvenTree.permissions import DataImporterPermission
+        from users.oauth2_scopes import _roles
+
+        required = DataImporterPermission().get_required_alternate_scopes(None, None)
+        self.assertEqual(required['GET'], [['g:read']])
+        for method in ('POST', 'PUT', 'PATCH', 'DELETE'):
+            self.assertEqual(
+                required[method], [[f'r:change:{role}'] for role in _roles]
+            )
+
+        self.assertTrue(self.token_passes('g:read', 'GET', required))
+        self.assertTrue(self.token_passes('r:change:part', 'POST', required))
+        self.assertTrue(self.token_passes('r:change:sales_order', 'DELETE', required))
+        self.assertFalse(self.token_passes('r:add:part', 'POST', required))
+        self.assertFalse(self.token_passes('g:read', 'PATCH', required))

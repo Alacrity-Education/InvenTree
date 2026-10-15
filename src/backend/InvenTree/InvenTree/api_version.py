@@ -1,10 +1,14 @@
 """InvenTree API version information."""
 
 # InvenTree API version
-INVENTREE_API_VERSION = 557
+INVENTREE_API_VERSION = 558
 """Increment this API version number whenever there is a significant change to the API that any clients need to know about."""
 
 INVENTREE_API_TEXT = """
+
+v558 -> 2026-10-15 : https://github.com/inventree/InvenTree/pull/XXXXX
+    - OAuth2 scope requirements of endpoints whose model belongs to several rulesets list one alternative per role (any one role's scope suffices, as for the role check)
+    - The same applies to the data importer endpoints (writes) and the generic metadata endpoints, which previously required the scopes of all roles
 
 v557 -> 2026-10-15 : https://github.com/inventree/InvenTree/pull/12978
     - Adds tips endpoints
