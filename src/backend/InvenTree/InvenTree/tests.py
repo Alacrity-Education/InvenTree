@@ -1469,6 +1469,35 @@ class TestSettings(InvenTreeTestCase):
         with in_env_context({TEST_ENV_NAME: "{'a': 1}"}):
             self.assertEqual(config.get_setting(TEST_ENV_NAME, None, typecast=dict), {})
 
+    def test_oauth2_provider_override(self):
+        """Test merging of user supplied OAUTH2_PROVIDER options."""
+        base = {'SCOPES': {'a': 'A'}, 'OIDC_ENABLED': True}
+
+        # No overrides: unchanged copy
+        self.assertEqual(config.merge_oauth2_provider_settings(base, None), base)
+        self.assertEqual(config.merge_oauth2_provider_settings(base, {}), base)
+
+        # Core keys are kept unless explicitly overridden
+        with self.assertLogs('inventree', level='INFO') as cm:
+            result = config.merge_oauth2_provider_settings(
+                base, {'DCR_ENABLED': True, 'OIDC_ENABLED': False}
+            )
+        self.assertEqual(
+            result, {'SCOPES': {'a': 'A'}, 'OIDC_ENABLED': False, 'DCR_ENABLED': True}
+        )
+        self.assertIn('DCR_ENABLED, OIDC_ENABLED', ''.join(cm.output))
+        self.assertNotIn('True', ''.join(cm.output))
+
+        # Base dict is not mutated
+        self.assertTrue(base['OIDC_ENABLED'])
+
+        # Values come through get_setting from the environment as JSON
+        with in_env_context({'INVENTREE_OAUTH2_PROVIDER': '{"DCR_ENABLED": true}'}):
+            overrides = config.get_setting(
+                'INVENTREE_OAUTH2_PROVIDER', 'oauth2_provider', None, typecast=dict
+            )
+        self.assertEqual(overrides, {'DCR_ENABLED': True})
+
     def test_instance_id(self):
         """Test get_instance_id."""
         val = get_global_setting('INVENTREE_INSTANCE_ID')

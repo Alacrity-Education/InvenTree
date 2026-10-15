@@ -252,6 +252,28 @@ def do_typecast(value, type, var_name=None):
     return value
 
 
+def merge_oauth2_provider_settings(base: dict, overrides: Optional[dict]) -> dict:
+    """Merge user-supplied django-oauth-toolkit options into the core defaults.
+
+    Arguments:
+        base: The OAUTH2_PROVIDER dict defined by InvenTree
+        overrides: User-supplied options (from config.yaml or the environment)
+
+    Returns:
+        A new dict; keys in 'overrides' replace those in 'base'.
+        Only the names of overridden keys are logged, never the values.
+    """
+    result = dict(base)
+
+    if overrides and isinstance(overrides, dict):
+        logger.info(
+            'Overriding OAUTH2_PROVIDER settings: %s', ', '.join(sorted(overrides))
+        )
+        result.update(overrides)
+
+    return result
+
+
 def get_config_value(config_key: str) -> Optional[Any]:
     """Helper function to retrieve a configuration value from the config file."""
     cfg_data = load_config_data()

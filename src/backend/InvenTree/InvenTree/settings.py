@@ -25,7 +25,12 @@ from corsheaders.defaults import default_headers as default_cors_headers
 
 import InvenTree.backup
 from InvenTree.cache import get_cache_config, is_global_cache_enabled
-from InvenTree.config import get_boolean_setting, get_oidc_private_key, get_setting
+from InvenTree.config import (
+    get_boolean_setting,
+    get_oidc_private_key,
+    get_setting,
+    merge_oauth2_provider_settings,
+)
 from InvenTree.ready import isInMainThread, isRunningBackup
 from InvenTree.sentry import default_sentry_dsn, init_sentry
 from InvenTree.validators import invalid_site_url_hint
@@ -1201,6 +1206,13 @@ OAUTH2_PROVIDER = {
     'OIDC_RSA_PRIVATE_KEY': get_oidc_private_key(),
     'PKCE_REQUIRED': True,
 }
+
+# Allow django-oauth-toolkit options to be set via config.yaml / environment
+# e.g. DCR_ENABLED, CIMD_ENABLED, token lifetimes, ALLOW_LOCALHOST_LOOPBACK
+OAUTH2_PROVIDER = merge_oauth2_provider_settings(
+    OAUTH2_PROVIDER,
+    get_setting('INVENTREE_OAUTH2_PROVIDER', 'oauth2_provider', None, typecast=dict),
+)
 OAUTH2_CHECK_EXCLUDED = [  # This setting mutes schema checks for these rule/method combinations
     '/api/email/generate/:post',
     '/api/webhook/{endpoint}/:post',

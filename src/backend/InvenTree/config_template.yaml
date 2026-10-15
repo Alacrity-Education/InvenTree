@@ -222,6 +222,12 @@ remote_login_header: HTTP_REMOTE_USER
 #   github:
 #     VERIFIED_EMAIL: true
 
+# Override django-oauth-toolkit options (merged into OAUTH2_PROVIDER)
+# Ref: https://django-oauth-toolkit.readthedocs.io/en/latest/settings.html
+# oauth2_provider:
+#   ACCESS_TOKEN_EXPIRE_SECONDS: 3600
+#   ALLOW_LOCALHOST_LOOPBACK: true
+
 # Add LDAP support (refer to the documentation for available options)
 # Ref: https://docs.inventree.org/en/stable/start/advanced/#ldap
 ldap:

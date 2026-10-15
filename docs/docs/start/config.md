@@ -245,6 +245,15 @@ If not specified via environment variables, the fallback files (automatically ge
 {{ configsetting("INVENTREE_OIDC_PRIVATE_KEY") }} Raw private key value |
 {{ configsetting("INVENTREE_OIDC_PRIVATE_KEY_FILE", default="oidc.pem") }} File containing private key value in PEM format |
 
+## OAuth2 Provider Options
+
+InvenTree acts as an OAuth2 / OpenID Connect provider using [django-oauth-toolkit](https://django-oauth-toolkit.readthedocs.io/en/latest/settings.html). Additional options for the toolkit (for example token lifetimes, `DCR_ENABLED`, `CIMD_ENABLED` or `ALLOW_LOCALHOST_LOOPBACK`) can be supplied as a dictionary, which is merged into the `OAUTH2_PROVIDER` setting. Keys provided here take precedence over the InvenTree defaults (`SCOPES`, `OIDC_ENABLED`, `OIDC_RSA_PRIVATE_KEY`, `PKCE_REQUIRED`), so override those with care.
+
+The environment variable must contain a valid JSON object, e.g. `INVENTREE_OAUTH2_PROVIDER='{"ACCESS_TOKEN_EXPIRE_SECONDS": 3600}'`. The names (not the values) of overridden keys are written to the log at startup.
+
+{{ configtable() }}
+{{ configsetting("INVENTREE_OAUTH2_PROVIDER") }} Dictionary of django-oauth-toolkit options |
+
 ## Database Options
 
 InvenTree provides support for multiple database backends - any backend supported natively by Django can be used.
