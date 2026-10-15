@@ -15,7 +15,80 @@ import { fetchGlobalStates, resetGlobalStatesFetched } from '../states/states';
 import { showLoginNotification } from './notifications';
 import { generateUrl } from './urls';
 
+/**
+ * Validate a user-supplied 'next' target.
+ *
+ * Only same-origin paths are accepted: the value must start with a single '/'
+ * (no '//' or '/\\' prefix, which browsers treat as a different host) and must
+ * still resolve to this origin once parsed. Returns the normalized
+ * path (including query and hash), or null if the value is not acceptable.
+ */
+export function sanitizeNextPath(value: unknown): string | null {
+  if (typeof value !== 'string' || !value.startsWith('/')) return null;
+  if (value.startsWith('//') || value.startsWith('/\\')) return null;
+
+  try {
+    const parsed = new URL(value, window.location.origin);
+    if (parsed.origin !== window.location.origin) return null;
+
+    // Normalization (e.g. '/..//host') can produce a protocol-relative path
+    const result = `${parsed.pathname}${parsed.search}${parsed.hash}`;
+    if (result.startsWith('//') || result.startsWith('/\\')) return null;
+    return result;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Find a 'next' target for the post-login redirect.
+ *
+ * It may be present in the current URL (e.g. /web/login?next=..., or
+ * /web/logged-in?next=... after SSO), or have been carried through the router
+ * state as 'queryParams' (e.g. /accounts/login/?next=... redirects to /web/?next=...,
+ * which ProtectedRoute forwards to the login flow).
+ */
+export function getNextPath(redirect?: any): string | null {
+  const sources = [window.location.search, redirect?.queryParams ?? ''];
+
+  for (const source of sources) {
+    try {
+      const next = sanitizeNextPath(new URLSearchParams(source).get('next'));
+      if (next) return next;
+    } catch {
+      // ignore malformed query parameters
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Return router state which keeps any 'next' target, for navigating between login pages
+ */
+export function keepNextState(redirect?: any) {
+  const next = getNextPath(redirect);
+  if (!next) return redirect;
+  return { ...redirect, queryParams: { next } };
+}
+
 export function followRedirect(navigate: NavigateFunction, redirect: any) {
+  // A 'next' target (e.g. from the OAuth2 authorize view) takes precedence
+  const next = getNextPath(redirect);
+
+  if (next) {
+    const base = `/${getBaseUrl()}`;
+
+    if (next === base || next.startsWith(`${base}/`)) {
+      // Inside the React app: use the router
+      navigate(next.slice(base.length) || '/');
+    } else {
+      // Outside the React app (server rendered page): leave the SPA
+      window.location.assign(next);
+    }
+    return;
+  }
+
   let url = redirect?.redirectUrl ?? '/home';
 
   if (redirect?.queryParams) {
@@ -488,7 +561,7 @@ export const checkLoginState = async (
     );
 
     navigate(providerSignupPending ? '/provider-signup' : '/login', {
-      state: redirect
+      state: keepNextState(redirect)
     });
   }
   setLoginChecked(true);
@@ -549,9 +622,17 @@ export function clearCsrfCookie() {
 
 export async function ProviderLogin(
   provider: AuthProvider,
-  process: 'login' | 'connect' = 'login'
+  process: 'login' | 'connect' = 'login',
+  redirect?: any
 ) {
   await ensureCsrf();
+
+  // Carry any 'next' target through the provider round trip
+  const next = process === 'login' ? getNextPath(redirect) : null;
+  const callback = `/${getBaseUrl()}/logged-in${
+    next ? `?${new URLSearchParams({ next }).toString()}` : ''
+  }`;
+
   post(generateUrl(apiUrl(ApiEndpoints.auth_provider_redirect)), {
     provider: provider.id,
     // Return to wherever this page is actually being served from, not the
@@ -561,10 +642,7 @@ export async function ProviderLogin(
     // back in server-side by Django's compatibility redirect for bare
     // (non-API-host) paths, which only exists on the Django side - so add
     // it explicitly rather than relying on that.
-    callback_url: generateUrl(
-      `/${getBaseUrl()}/logged-in`,
-      window.location.origin
-    ),
+    callback_url: generateUrl(callback, window.location.origin),
     process: process,
     csrfmiddlewaretoken: getCsrfCookie()
   });

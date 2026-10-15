@@ -2,7 +2,7 @@ import { t } from '@lingui/core/macro';
 import { useEffect } from 'react';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 
-import { checkLoginState } from '../../functions/auth';
+import { checkLoginState, keepNextState } from '../../functions/auth';
 import { showLoginNotification } from '../../functions/notifications';
 import { Wrapper } from './Layout';
 
@@ -41,7 +41,7 @@ export default function Logged_In() {
         message: ssoErrorMessage(error),
         success: false
       });
-      navigate('/login', { state: location?.state });
+      navigate('/login', { state: keepNextState(location?.state) });
       return;
     }
 

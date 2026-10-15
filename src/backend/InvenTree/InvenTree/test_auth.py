@@ -201,6 +201,32 @@ class TestAuth(InvenTreeAPITestCase):
     login_url = '/api/auth/v1/auth/login'
     test_email = 'tester@example.com'
 
+    def test_account_login_preserves_next(self):
+        """The legacy account_login redirect forwards a same-origin 'next', nothing else."""
+        self.logout()
+        base = f'/{django_settings.FRONTEND_URL_BASE}'
+
+        response = self.client.get(reverse('account_login'))
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.url, base)
+
+        response = self.client.get(
+            reverse('account_login'), {'next': '/o/authorize/?client_id=abc&state=x'}
+        )
+        self.assertEqual(response.status_code, 302)
+        self.assertTrue(response.url.startswith(f'{base}?next='))
+        self.assertIn('client_id%3Dabc', response.url)
+
+        # Other parameters are dropped, an off-site 'next' is ignored
+        response = self.client.get(
+            reverse('account_login'),
+            {'next': '/api/', 'login': 'someone', 'password': 'secret'},
+        )
+        self.assertEqual(response.url, f'{base}?next=%2Fapi%2F')
+        for unsafe in ('https://evil.example/', '//evil.example/', 'javascript:x'):
+            response = self.client.get(reverse('account_login'), {'next': unsafe})
+            self.assertEqual(response.url, base, unsafe)
+
     def test_buildin_token(self):
         """Test the built-in token authentication."""
         self.logout()
